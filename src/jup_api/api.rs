@@ -4,15 +4,15 @@ use solana_sdk::pubkey::Pubkey;
 use crate::utils::fetch::{send_http_request, RequestParams};
 
 use super::{
-    constants::{QUOTE, SWAP, TESTME, USDC},
+    constants::{QUOTE, SOL, SWAP, TESTME},
     schemas::{QuoteResponse, SwapBody, SwapResponse},
 };
 
-pub async fn quote(proxy: Option<&Proxy>) -> eyre::Result<QuoteResponse> {
+pub async fn quote(amount: &str, proxy: Option<&Proxy>) -> eyre::Result<QuoteResponse> {
     let query_args = [
         ("inputMint", TESTME),
-        ("outputMint", USDC),
-        ("amount", "987000000"),
+        ("outputMint", SOL),
+        ("amount", amount),
         ("slippageBps", "50"),
         ("swapMode", "ExactIn"),
         ("onlyDirectRoutes", "false"),

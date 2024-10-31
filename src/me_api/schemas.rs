@@ -19,11 +19,16 @@ pub struct ClaimResult<T> {
 #[derive(Deserialize)]
 pub struct ClaimBatchResponse<T> {
     pub result: Option<ClaimResult<T>>,
-    pub error: Option<JsonData<ErrorReport>>,
+    pub error: Option<ErrorReport>,
 }
 
 #[derive(Deserialize)]
 pub struct ErrorReport {
+    pub json: ErrorDescription,
+}
+
+#[derive(Deserialize)]
+pub struct ErrorDescription {
     pub code: i64,
     pub message: String,
 }

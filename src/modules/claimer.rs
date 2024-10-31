@@ -56,8 +56,7 @@ async fn process_account(
     let response = receipt.first().unwrap();
 
     if let Some(err) = &response.error {
-        let err = err.json.first().unwrap();
-        tracing::warn!("{} {}", err.code, err.message);
+        tracing::warn!("{} {}", err.json.code, err.json.message);
         return Ok(());
     }
 

@@ -1,7 +1,6 @@
 use std::num::ParseIntError;
 
 use bip39::Mnemonic;
-use regex::Regex;
 use ring::hmac::Key;
 use sodiumoxide::crypto::sign::{ed25519, PublicKey, SecretKey, Seed};
 
@@ -22,19 +21,6 @@ fn mnemonic_to_seed(mnemonic: &str) -> Vec<u8> {
 
 fn to_hex(bytes: Vec<u8>) -> String {
     hex::encode(bytes)
-}
-
-fn is_valid_path(path: &str) -> bool {
-    let path_regex = Regex::new(r"^m(\\/[0-9]+')+$").unwrap();
-
-    if !path_regex.is_match(path) {
-        return false;
-    }
-
-    path.split('/')
-        .skip(1)
-        .map(replace_derive)
-        .all(|element| element.parse::<f64>().is_ok())
 }
 
 fn replace_derive(val: &str) -> String {
@@ -84,10 +70,6 @@ fn ckd_priv(keys: &Keys, index: u32) -> Keys {
 }
 
 fn derive_path(path: &str, seed: &str, curve: &str, offset: u32) -> eyre::Result<Keys> {
-    if !is_valid_path(path) {
-        eyre::bail!("Invalid derivation path".to_string());
-    }
-
     let master_keys = get_master_key_from_seed(seed, curve);
     let segments = parse_segments(path).map_err(|e| e.to_string()).unwrap();
 

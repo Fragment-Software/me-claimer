@@ -7,7 +7,6 @@ use crate::{config::Config, db::database::Database};
 use claimer::claim_testme;
 use dialoguer::{theme::ColorfulTheme, Select};
 use swap::swap_testme;
-use transfer::collect_and_close;
 
 pub async fn menu() -> eyre::Result<()> {
     let config = Config::read_default().await;
@@ -17,7 +16,7 @@ pub async fn menu() -> eyre::Result<()> {
             "Generate a database for a session",
             "Claim $TestME",
             "Swap $TestME -> $USDC",
-            "Close $TestMe ata + Transfer $USDC",
+            "Close $TestMe ATA + $WSOL ATA [inactive]",
             "Exit",
         ];
 
@@ -42,8 +41,9 @@ pub async fn menu() -> eyre::Result<()> {
                 swap_testme(db, &config).await?;
             }
             3 => {
-                let db = Database::read().await;
-                collect_and_close(db, &config).await?;
+                continue;
+                // let db = Database::read().await;
+                // collect_and_close(db, &config).await?;
             }
             4 => {
                 return Ok(());

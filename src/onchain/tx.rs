@@ -18,35 +18,31 @@ pub async fn send_and_confirm_tx(
         min_context_slot: None,
     };
 
-    let simulate_res = provider.simulate_transaction(&tx).await?;
+    match provider.send_transaction_with_config(&tx, tx_config).await {
+        Ok(tx_signature) => {
+            tracing::info!("Sent transaction: {}{}", SOLANA_EXPLORER_URL, tx_signature);
 
-    tracing::info!("{:#?}", simulate_res);
+            match provider
+                .confirm_transaction_with_spinner(
+                    &tx_signature,
+                    tx.get_recent_blockhash(),
+                    CommitmentConfig::confirmed(),
+                )
+                .await
+            {
+                Ok(_) => {
+                    tracing::info!("Transaction confirmed");
+                }
 
-    // match provider.send_transaction_with_config(&tx, tx_config).await {
-    //     Ok(tx_signature) => {
-    //         tracing::info!("Sent transaction: {}{}", SOLANA_EXPLORER_URL, tx_signature);
-
-    //         match provider
-    //             .confirm_transaction_with_spinner(
-    //                 &tx_signature,
-    //                 tx.get_recent_blockhash(),
-    //                 CommitmentConfig::confirmed(),
-    //             )
-    //             .await
-    //         {
-    //             Ok(_) => {
-    //                 tracing::info!("Transaction confirmed");
-    //             }
-
-    //             Err(e) => {
-    //                 return Err(eyre::eyre!("Transaction failed: {}", e));
-    //             }
-    //         }
-    //     }
-    //     Err(e) => {
-    //         return Err(eyre::eyre!("Failed to send tx: {e}"));
-    //     }
-    // }
+                Err(e) => {
+                    return Err(eyre::eyre!("Transaction failed: {}", e));
+                }
+            }
+        }
+        Err(e) => {
+            return Err(eyre::eyre!("Failed to send tx: {e}"));
+        }
+    }
 
     Ok(())
 }

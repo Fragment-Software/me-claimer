@@ -2,8 +2,8 @@ use std::{str::FromStr, time::Duration};
 
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{
-    commitment_config::CommitmentConfig, instruction::Instruction, pubkey::Pubkey, signer::Signer,
-    transaction::Transaction,
+    commitment_config::CommitmentConfig, instruction::Instruction, program_pack::Pack,
+    pubkey::Pubkey, signer::Signer, transaction::Transaction,
 };
 
 use crate::{
@@ -12,9 +12,7 @@ use crate::{
     onchain::{
         constants::{TESTME_PUBKEY, TOKEN_PROGRAM_ID},
         derive::derive_ata,
-        ixs::create_ata,
         tx::send_and_confirm_tx,
-        typedefs::CreateAtaArgs,
     },
     utils::misc::pretty_sleep,
 };
@@ -47,45 +45,27 @@ async fn get_ixs(
 ) -> eyre::Result<Option<Vec<Instruction>>> {
     let mut ixs = vec![];
 
+    let mut balance = provider.get_balance(wallet_pubkey).await?;
+
+    let rent = provider
+        .get_minimum_balance_for_rent_exemption(spl_token::state::Account::LEN)
+        .await?;
+
     let (wallet_token_ata, _) = derive_ata(wallet_pubkey, &TESTME_PUBKEY, &TOKEN_PROGRAM_ID);
     let token_ata_exist = provider.get_account_data(&wallet_token_ata).await.is_ok();
 
+    let token_account = provider
+        .get_token_account_balance(&wallet_token_ata)
+        .await?;
+
+    let token_account_balance = token_account.amount.parse::<u64>()?;
+
+    if token_account_balance != 0 {
+        tracing::warn!("TestME balance is not 0. Run Swap Module first");
+        return Ok(None);
+    }
+
     if token_ata_exist {
-        let token_account = provider
-            .get_token_account_balance(&wallet_token_ata)
-            .await?;
-
-        let token_account_balance = token_account.amount.parse::<u64>()?;
-
-        if token_account_balance != 0 {
-            let (cex_token_ata, _) = derive_ata(cex_pubkey, &TESTME_PUBKEY, &TOKEN_PROGRAM_ID);
-            let collector_token_ata_exist = provider.get_account_data(&cex_token_ata).await.is_ok();
-
-            if !collector_token_ata_exist {
-                let create_ata_args = CreateAtaArgs {
-                    funding_address: *wallet_pubkey,
-                    associated_account_address: cex_token_ata,
-                    wallet_address: *wallet_pubkey,
-                    token_mint_address: TESTME_PUBKEY,
-                    token_program_id: TOKEN_PROGRAM_ID,
-                    instruction: 0,
-                };
-
-                ixs.push(create_ata(create_ata_args));
-            }
-
-            ixs.push(spl_token::instruction::transfer_checked(
-                &TOKEN_PROGRAM_ID,
-                &wallet_token_ata,
-                &TESTME_PUBKEY,
-                &cex_token_ata,
-                wallet_pubkey,
-                &[wallet_pubkey],
-                token_account_balance,
-                9u8,
-            )?);
-        }
-
         ixs.push(
             spl_token::instruction::close_account(
                 &TOKEN_PROGRAM_ID,
@@ -96,9 +76,8 @@ async fn get_ixs(
             )
             .expect("Close ix to be valid"),
         );
+        balance += rent;
     }
-
-    let mut balance = provider.get_balance(wallet_pubkey).await?;
 
     if balance <= 5000 {
         tracing::warn!(
@@ -113,7 +92,7 @@ async fn get_ixs(
     ixs.push(solana_sdk::system_instruction::transfer(
         wallet_pubkey,
         cex_pubkey,
-        balance - 5000,
+        amount_to_withdraw,
     ));
 
     Ok(Some(ixs))

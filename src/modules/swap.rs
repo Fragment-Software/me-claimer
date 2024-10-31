@@ -1,5 +1,10 @@
 use std::time::Duration;
 
+use base64::{
+    alphabet::{self},
+    engine::{GeneralPurpose, GeneralPurposeConfig},
+    Engine,
+};
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{
     commitment_config::CommitmentConfig, signature::Signature, signer::Signer,
@@ -10,7 +15,11 @@ use crate::{
     config::Config,
     db::{account::Account, database::Database},
     jup_api::api::{quote, swap},
-    onchain::tx::send_and_confirm_tx,
+    onchain::{
+        constants::{TESTME_PUBKEY, TOKEN_PROGRAM_ID},
+        derive::derive_ata,
+        tx::send_and_confirm_tx,
+    },
     utils::misc::{pretty_sleep, swap_ip_address},
 };
 
@@ -51,12 +60,22 @@ async fn process_account(
         swap_ip_address(&config.swap_ip_link).await?;
     }
 
-    let quote_response = quote(proxy.as_ref()).await?;
+    let (token_ata, _) = derive_ata(&wallet_pubkey, &TESTME_PUBKEY, &TOKEN_PROGRAM_ID);
+    let token_balance_resp = provider.get_token_account_balance(&token_ata).await?;
+
+    if token_balance_resp.amount == "0" {
+        tracing::warn!("TestME balance is 0");
+        return Ok(());
+    }
+
+    let quote_response = quote(&token_balance_resp.amount, proxy.as_ref()).await?;
+
     let swap_resp = swap(&wallet_pubkey, quote_response, proxy.as_ref()).await?;
 
-    let tx_base58 = swap_resp.swap_transaction;
+    let tx_base64 = swap_resp.swap_transaction;
 
-    let tx_bytes = solana_sdk::bs58::decode(tx_base58).into_vec()?;
+    let tx_bytes =
+        GeneralPurpose::new(&alphabet::STANDARD, GeneralPurposeConfig::new()).decode(tx_base64)?;
 
     let mut tx = bincode::deserialize::<VersionedTransaction>(&tx_bytes)?;
 

@@ -1,11 +1,7 @@
 use solana_program::pubkey;
 use solana_sdk::pubkey::Pubkey;
 
-pub const SYSTEM_PROGRAM_ID: Pubkey = pubkey!("11111111111111111111111111111111");
-
 pub const TESTME_PUBKEY: Pubkey = pubkey!("TMEvsrnGfUVQEBAFnQhC37jg27Nm3CLxSQyNi2duPce");
-
-pub const USDC_PUBKEY: Pubkey = pubkey!("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
 
 pub const TOKEN_PROGRAM_ID: Pubkey = pubkey!("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 
