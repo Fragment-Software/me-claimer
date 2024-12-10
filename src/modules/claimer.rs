@@ -41,15 +41,29 @@ pub async fn claim_me(db: Database, config: &Config) -> eyre::Result<()> {
         join_set.spawn(process_account(account, txs_for_account, config_clone));
 
         if join_set.len() >= config.parallelism {
-            if let Some(Err(e)) = join_set.join_next().await {
-                tracing::error!("Task failed: {}", e);
+            if let Some(result) = join_set.join_next().await {
+                match result {
+                    Ok(Ok(())) => {}
+                    Ok(Err(e)) => {
+                        tracing::error!("Task failed with error: {}", e);
+                    }
+                    Err(e) => {
+                        tracing::error!("Task panicked or failed to join: {}", e);
+                    }
+                }
             }
         }
     }
 
     while let Some(result) = join_set.join_next().await {
-        if let Err(e) = result {
-            tracing::error!("Task failed: {}", e);
+        match result {
+            Ok(Ok(())) => {}
+            Ok(Err(e)) => {
+                tracing::error!("Task failed with error: {}", e);
+            }
+            Err(e) => {
+                tracing::error!("Task panicked or failed to join: {}", e);
+            }
         }
     }
 
@@ -126,8 +140,7 @@ async fn process_account(
     let wallet = account.keypair()?;
 
     let payer_kp = match config.use_external_fee_pay {
-        true => get_wallet(&config.external_fee_payer_secret)
-            .expect("Invalid external_fee_payer_secret"),
+        true => get_wallet(&config.external_fee_payer_secret)?,
         false => wallet.insecure_clone(),
     };
 
@@ -178,7 +191,10 @@ async fn process_account(
                 .as_str()
                 .ok_or_else(|| eyre::eyre!("Failed to get bundle UUID from response"))?;
 
-            tracing::info!("bundle_uuid: {}", bundle_uuid);
+            tracing::info!(
+                "Sent bundle: https://explorer.jito.wtf/bundle/{}",
+                bundle_uuid
+            );
 
             let max_retries = 10;
             let retry_delay = Duration::from_secs(5);
