@@ -50,8 +50,9 @@ pub async fn collect_and_close(mut db: Database, config: &Config) -> eyre::Resul
 async fn get_ixs(
     provider: &RpcClient,
     wallet_pubkey: &Pubkey,
-    collector_pubkey: &Pubkey,
+    collector_pubkey: Option<&str>,
     payer_pubkey: &Pubkey,
+    config: &Config,
 ) -> eyre::Result<Option<Vec<Instruction>>> {
     let mut ixs = vec![];
 
@@ -75,9 +76,10 @@ async fn get_ixs(
 
         let token_account_balance = token_account.amount.parse::<u64>()?;
 
-        if token_account_balance != 0 {
-            let (collector_token_ata, _) =
-                derive_ata(collector_pubkey, &ME_PUBKEY, &TOKEN_PROGRAM_ID);
+        if token_account_balance != 0 && config.collect_me {
+            let user = Pubkey::from_str(collector_pubkey.unwrap())?;
+
+            let (collector_token_ata, _) = derive_ata(&user, &ME_PUBKEY, &TOKEN_PROGRAM_ID);
             let collector_token_ata_exist = provider
                 .get_account_data(&collector_token_ata)
                 .await
@@ -87,7 +89,7 @@ async fn get_ixs(
                 let create_ata_args = CreateAtaArgs {
                     funding_address: *payer_pubkey,
                     associated_account_address: collector_token_ata,
-                    wallet_address: *collector_pubkey,
+                    wallet_address: user,
                     token_mint_address: ME_PUBKEY,
                     token_program_id: TOKEN_PROGRAM_ID,
                     instruction: 0,
@@ -108,39 +110,45 @@ async fn get_ixs(
             )?);
         }
 
-        let close_ix =
-            Instructions::close_account(&wallet_token_ata, wallet_pubkey, payer_pubkey, rent);
+        if token_account_balance == 0 {
+            let close_ix =
+                Instructions::close_account(&wallet_token_ata, wallet_pubkey, payer_pubkey, rent);
 
-        ixs.extend_from_slice(&close_ix);
+            ixs.extend_from_slice(&close_ix);
+        }
     }
 
-    let mut balance = provider.get_balance(wallet_pubkey).await?;
+    if config.collect_sol {
+        let to_pubkey = Pubkey::from_str(collector_pubkey.unwrap())?;
 
-    balance = if should_add_rent {
-        balance + rent - sol_to_lamports(lamports_to_sol(rent) * 0.03)
-    } else {
-        balance
-    };
+        let mut balance = provider.get_balance(wallet_pubkey).await?;
 
-    if balance <= 5000 {
-        tracing::warn!(
-            "Wallet doesn't have enough SOL to withdraw: {} | 5001 at least",
+        balance = if should_add_rent {
+            balance + rent - sol_to_lamports(lamports_to_sol(rent) * 0.03)
+        } else {
             balance
-        );
-        return Ok(Some(ixs));
+        };
+
+        if balance <= 5000 {
+            tracing::warn!(
+                "Wallet doesn't have enough SOL to withdraw: {} | 5001 at least",
+                balance
+            );
+            return Ok(Some(ixs));
+        }
+
+        let amount_to_withdraw = if payer_pubkey == wallet_pubkey {
+            balance - 5000
+        } else {
+            balance
+        };
+
+        ixs.push(solana_sdk::system_instruction::transfer(
+            wallet_pubkey,
+            &to_pubkey,
+            amount_to_withdraw,
+        ));
     }
-
-    let amount_to_withdraw = if payer_pubkey == wallet_pubkey {
-        balance - 5000
-    } else {
-        balance
-    };
-
-    ixs.push(solana_sdk::system_instruction::transfer(
-        wallet_pubkey,
-        collector_pubkey,
-        amount_to_withdraw,
-    ));
 
     Ok(Some(ixs))
 }
@@ -152,7 +160,7 @@ async fn process_account(
 ) -> eyre::Result<()> {
     let wallet = account.keypair()?;
     let wallet_pubkey = account.get_pubkey();
-    let collector_pubkey = Pubkey::from_str(&config.collector_pubkey)?;
+    let collector_pubkey = account.get_cex_address();
 
     tracing::info!("Wallet address: `{}`", wallet.pubkey());
 
@@ -169,8 +177,9 @@ async fn process_account(
     let instructions = match get_ixs(
         provider,
         &wallet_pubkey,
-        &collector_pubkey,
+        collector_pubkey,
         &payer_kp.pubkey(),
+        config,
     )
     .await?
     {
@@ -178,18 +187,20 @@ async fn process_account(
         None => return Ok(()),
     };
 
-    let (recent_blockhash, _) = provider
-        .get_latest_blockhash_with_commitment(CommitmentConfig::finalized())
-        .await?;
+    if !instructions.is_empty() {
+        let (recent_blockhash, _) = provider
+            .get_latest_blockhash_with_commitment(CommitmentConfig::finalized())
+            .await?;
 
-    let tx = Transaction::new_signed_with_payer(
-        &instructions,
-        Some(&payer_kp.pubkey()),
-        &signing_keypairs,
-        recent_blockhash,
-    );
+        let tx = Transaction::new_signed_with_payer(
+            &instructions,
+            Some(&payer_kp.pubkey()),
+            &signing_keypairs,
+            recent_blockhash,
+        );
 
-    send_and_confirm_tx(provider, tx).await?;
+        send_and_confirm_tx(provider, tx).await?;
+    }
 
     Ok(())
 }

@@ -11,6 +11,12 @@ PARALLELISM = 1
 # withdraw allocation to external address in claim tx
 WITHDRAW_TO_CEX = false
 
+# collect $ME to cex_address in collector module
+COLLECT_ME = false
+
+# collect $SOL to cex_address in collector module
+COLLECT_SOL = false
+
 # check in https://jito-labs.metabaseapp.com/public/dashboard/016d4d60-e168-4a8f-93c7-4cd5ec6c7c8d (in sol)
 JITO_TIP_AMOUNT = 0.0003
 

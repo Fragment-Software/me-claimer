@@ -10,13 +10,14 @@ pub struct Config {
     pub solana_rpc_url: String,
     pub me_proxy_url: String,
     pub parallelism: usize,
+    pub collect_me: bool,
+    pub collect_sol: bool,
     pub withdraw_to_cex: bool,
     pub jito_tip_amount: f64,
     pub cu_price: u64,
     pub claim_sleep_range: [u64; 2],
     pub use_external_fee_pay: bool,
     pub external_fee_payer_secret: String,
-    pub collector_pubkey: String,
 }
 
 impl Config {

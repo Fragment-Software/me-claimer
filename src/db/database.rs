@@ -30,7 +30,7 @@ impl Database {
     pub async fn new(config: &Config) -> eyre::Result<Self> {
         let secrets = read_file_lines(SECRETS_FILE_PATH).await.unwrap();
 
-        let cex_addresses = if config.withdraw_to_cex {
+        let cex_addresses = if config.withdraw_to_cex || config.collect_me || config.collect_sol {
             let addresses = read_file_lines(CEX_ADDRESSES_FILE_PATH).await.unwrap();
 
             if addresses.len() != secrets.len() {
