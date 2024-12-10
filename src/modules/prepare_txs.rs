@@ -47,8 +47,22 @@ pub async fn get_claim_txs(accounts: &mut [Account], config: &Config) -> ClaimTx
                         }
                     } else if let Some(result) = receipt.result {
                         for (index, json) in result.data.json.transactions.into_iter().enumerate() {
-                            let token_amount =
-                                json.metadata[index].merkle_distribution.token_amount;
+                            let token_amount = if let Some(distibution) =
+                                json.metadata[index].merkle_distribution.as_ref()
+                            {
+                                distibution.token_amount
+                            } else if let Some(distibution) =
+                                json.metadata[index].cosigner_distribution.as_ref()
+                            {
+                                distibution.token_amount
+                            } else {
+                                tracing::warn!(
+                                    "Failed to get distribution type: {:#?}",
+                                    json.metadata[index]
+                                );
+                                continue;
+                            };
+
                             let tx_base58 = json.tx_base58.clone();
 
                             if global_index < txns.len() {

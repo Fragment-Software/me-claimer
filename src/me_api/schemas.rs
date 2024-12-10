@@ -1,7 +1,7 @@
 use serde::Deserialize;
 
 #[derive(Deserialize, Debug)]
-pub struct MerkleDistribution {
+pub struct Distribution {
     #[serde(rename = "tokenAmount")]
     pub token_amount: u64,
 }
@@ -9,7 +9,9 @@ pub struct MerkleDistribution {
 #[derive(Deserialize, Debug)]
 pub struct Metadata {
     #[serde(rename = "merkleDistribution")]
-    pub merkle_distribution: MerkleDistribution,
+    pub merkle_distribution: Option<Distribution>,
+    #[serde(rename = "cosignerDistribution")]
+    pub cosigner_distribution: Option<Distribution>,
 }
 
 #[derive(Deserialize, Debug)]
