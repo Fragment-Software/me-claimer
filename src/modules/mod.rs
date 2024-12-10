@@ -3,15 +3,12 @@ mod collect_and_close;
 mod prepare_txs;
 mod sender;
 
-use std::sync::Arc;
-
 use crate::{config::Config, db::database::Database};
 
 use claimer::claim_me;
 use collect_and_close::collect_and_close;
 use dialoguer::{theme::ColorfulTheme, Select};
 use sender::sender;
-use tokio::sync::Mutex;
 
 const LOGO: &str = r#"
     ___                                                  __
@@ -59,7 +56,7 @@ pub async fn menu() -> eyre::Result<()> {
                 tracing::info!("Database successfully generated")
             }
             1 => {
-                let db = Arc::new(Mutex::new(Database::read().await));
+                let db = Database::read().await;
                 claim_me(db, &config).await?;
             }
             2 => {

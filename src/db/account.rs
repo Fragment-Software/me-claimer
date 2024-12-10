@@ -12,7 +12,6 @@ pub struct Account {
     secret: String,
     cex_address: Option<String>,
     proxy: String,
-    claimed: bool,
     closed_ata: bool,
     collected_sol: bool,
 }
@@ -42,14 +41,6 @@ impl Account {
 
     pub fn get_cex_address(&self) -> Option<&str> {
         self.cex_address.as_deref()
-    }
-
-    pub fn set_claimed(&mut self, claimed: bool) {
-        self.claimed = claimed
-    }
-
-    pub fn get_claimed(&self) -> bool {
-        self.claimed
     }
 
     pub fn get_closed_ata(&self) -> bool {

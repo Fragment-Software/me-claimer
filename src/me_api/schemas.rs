@@ -1,37 +1,42 @@
 use serde::Deserialize;
 
-#[derive(Deserialize)]
-pub struct CosignerDistribution {
+#[derive(Deserialize, Debug)]
+pub struct MerkleDistribution {
     #[serde(rename = "tokenAmount")]
     pub token_amount: u64,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct Metadata {
-    #[serde(rename = "cosignerDistribution")]
-    pub cosigner_distribution: CosignerDistribution,
+    #[serde(rename = "merkleDistribution")]
+    pub merkle_distribution: MerkleDistribution,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct ClaimJson {
     pub metadata: Vec<Metadata>,
     #[serde(rename = "txBase58")]
     pub tx_base58: String,
 }
 
-#[derive(Deserialize)]
-pub struct JsonData<T> {
-    pub json: Vec<T>,
+#[derive(Deserialize, Debug)]
+pub struct Transactions {
+    pub transactions: Vec<ClaimJson>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct JsonData {
+    pub json: Transactions,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct ClaimResult {
+    pub data: JsonData,
 }
 
 #[derive(Deserialize)]
-pub struct ClaimResult<T> {
-    pub data: JsonData<T>,
-}
-
-#[derive(Deserialize)]
-pub struct ClaimBatchResponse<T> {
-    pub result: Option<ClaimResult<T>>,
+pub struct ClaimBatchResponse {
+    pub result: Option<ClaimResult>,
     pub error: Option<ErrorReport>,
 }
 

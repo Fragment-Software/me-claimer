@@ -8,7 +8,7 @@ use solana_sdk::{
     signer::Signer,
     transaction::{Transaction, VersionedTransaction},
 };
-use tokio::{sync::Mutex, task::JoinSet};
+use tokio::task::JoinSet;
 
 use crate::{
     config::Config,
@@ -25,52 +25,24 @@ use crate::{
 
 use super::prepare_txs::get_claim_txs;
 
-pub async fn claim_me(db: Arc<Mutex<Database>>, config: &Config) -> eyre::Result<()> {
+pub async fn claim_me(db: Database, config: &Config) -> eyre::Result<()> {
     let config = Arc::new(config.clone());
 
-    let unclaimed_wallets: Vec<Arc<Mutex<Account>>> = db
-        .lock()
-        .await
-        .0
-        .iter()
-        .filter(|a| !a.get_claimed())
-        .map(|a| Arc::new(Mutex::new(a.clone())))
-        .collect();
+    let mut accounts: Vec<Account> = db.0.clone();
 
     let mut join_set = JoinSet::new();
 
-    let mut locked_wallets = Vec::new();
+    let txs = get_claim_txs(&mut accounts, &config).await?;
 
-    for wallet in &unclaimed_wallets {
-        let account = wallet.lock().await.clone();
-        locked_wallets.push(account);
-    }
+    for (index, account) in accounts.into_iter().enumerate() {
+        let config_clone = Arc::clone(&config);
+        let txs_for_account = txs[index].clone();
 
-    let txs = get_claim_txs(&locked_wallets, &config).await?;
+        join_set.spawn(process_account(account, txs_for_account, config_clone));
 
-    for (index, account) in unclaimed_wallets.into_iter().enumerate() {
-        let should_process = {
-            let account_locked = account.lock().await;
-            !account_locked.get_claimed()
-        };
-
-        if should_process {
-            let config_clone = Arc::clone(&config);
-            let account_clone = Arc::clone(&account);
-            let txs_for_account = txs[index].clone();
-            let db_clone = Arc::clone(&db);
-
-            join_set.spawn(process_account(
-                account_clone,
-                txs_for_account,
-                config_clone,
-                db_clone,
-            ));
-
-            if join_set.len() >= config.parallelism {
-                if let Some(Err(e)) = join_set.join_next().await {
-                    tracing::error!("Task failed: {}", e);
-                }
+        if join_set.len() >= config.parallelism {
+            if let Some(Err(e)) = join_set.join_next().await {
+                tracing::error!("Task failed: {}", e);
             }
         }
     }
@@ -141,21 +113,21 @@ async fn get_ixs(
 }
 
 async fn process_account(
-    account: Arc<Mutex<Account>>,
+    account: Account,
     txs: Vec<HashMap<std::string::String, u64>>,
     config: Arc<Config>,
-    db: Arc<Mutex<Database>>,
 ) -> eyre::Result<()> {
     let jito_provider = JitoJsonRpcSDK::new(
         "https://mainnet.block-engine.jito.wtf/api/v1",
         None,
-        &account.lock().await.proxy(),
+        &account.proxy(),
     );
 
-    let wallet = account.lock().await.keypair()?;
+    let wallet = account.keypair()?;
 
     let payer_kp = match config.use_external_fee_pay {
-        true => get_wallet(&config.external_fee_payer_secret)?,
+        true => get_wallet(&config.external_fee_payer_secret)
+            .expect("Invalid external_fee_payer_secret"),
         false => wallet.insecure_clone(),
     };
 
@@ -178,7 +150,7 @@ async fn process_account(
             let instructions = get_ixs(
                 *allocation,
                 &wallet.pubkey(),
-                account.lock().await.get_cex_address(),
+                account.get_cex_address(),
                 &payer_kp.pubkey(),
                 &config,
             )
@@ -206,6 +178,8 @@ async fn process_account(
                 .as_str()
                 .ok_or_else(|| eyre::eyre!("Failed to get bundle UUID from response"))?;
 
+            tracing::info!("bundle_uuid: {}", bundle_uuid);
+
             let max_retries = 10;
             let retry_delay = Duration::from_secs(5);
 
@@ -224,8 +198,7 @@ async fn process_account(
                                             return check_final_bundle_status(
                                                 &jito_provider,
                                                 bundle_uuid,
-                                                account,
-                                                db,
+                                                account.to_owned(),
                                             )
                                             .await;
                                         }

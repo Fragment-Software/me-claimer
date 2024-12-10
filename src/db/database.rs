@@ -2,6 +2,7 @@ use std::fs::File;
 
 use rand::{seq::IteratorRandom, thread_rng};
 use serde::{Deserialize, Serialize};
+use tokio::io::AsyncWriteExt;
 
 use crate::{config::Config, utils::files::read_file_lines};
 
@@ -10,7 +11,7 @@ use super::{
     constants::{CEX_ADDRESSES_FILE_PATH, DB_FILE_PATH, PROXIES_FILE_PATH, SECRETS_FILE_PATH},
 };
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Database(pub Vec<Account>);
 
 impl Database {
@@ -94,8 +95,13 @@ impl Database {
             .choose(&mut rng)
     }
 
-    pub fn update(&self) {
-        let file = File::create(DB_FILE_PATH).expect("Default database must be vaild");
-        let _ = serde_json::to_writer_pretty(file, &self);
+    pub async fn update(&self) {
+        let mut file = tokio::fs::File::create(DB_FILE_PATH)
+            .await
+            .expect("Default database must be vaild");
+        let serialized = serde_json::to_string_pretty(&self).expect("Failed to serialize database");
+        file.write_all(serialized.as_bytes())
+            .await
+            .expect("Failed to update database");
     }
 }

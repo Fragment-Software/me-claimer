@@ -6,7 +6,7 @@ ME_PROXY_URL = "http://login:password@ip:port"
 
 # The maximum number of asynchronous tasks running concurrently
 # (not directly related to operating system threads)
-PARALLELISM = 1
+PARALLELISM = 2
 
 # withdraw allocation to external address in claim tx
 WITHDRAW_TO_CEX = false
@@ -27,7 +27,7 @@ CU_PRICE = 800000
 CLAIM_SLEEP_RANGE = [4, 10]
 
 # use external fee payer
-USE_EXTERNAL_FEE_PAY = true
+USE_EXTERNAL_FEE_PAY = false
 
 # tx payer private key or mnemonic phrase
 EXTERNAL_FEE_PAYER_SECRET = ""

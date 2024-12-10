@@ -14,7 +14,7 @@ use crate::{
 
 type ClaimTxs = eyre::Result<Vec<Vec<HashMap<String, u64>>>>;
 
-pub async fn get_claim_txs(accounts: &[Account], config: &Config) -> ClaimTxs {
+pub async fn get_claim_txs(accounts: &mut [Account], config: &Config) -> ClaimTxs {
     let mut headers = HeaderMap::new();
 
     let headers_map = read_json_to_map(HEADERS_FILE_PATH).await?;
@@ -39,11 +39,16 @@ pub async fn get_claim_txs(accounts: &[Account], config: &Config) -> ClaimTxs {
                 for (index, receipt) in receipts.into_iter().enumerate() {
                     let global_index = batch_index * 40 + index;
                     if let Some(err) = &receipt.error {
-                        tracing::warn!("Error {}: {}", err.json.code, err.json.message);
+                        if err.json.code == -32600 && err.json.message == "No instructions to fetch"
+                        {
+                            tracing::info!("{}: Already claimed", batch[batch_index]);
+                        } else {
+                            tracing::warn!("Error {}: {}", err.json.code, err.json.message);
+                        }
                     } else if let Some(result) = receipt.result {
-                        for (index, json) in result.data.json.into_iter().enumerate() {
+                        for (index, json) in result.data.json.transactions.into_iter().enumerate() {
                             let token_amount =
-                                json.metadata[index].cosigner_distribution.token_amount;
+                                json.metadata[index].merkle_distribution.token_amount;
                             let tx_base58 = json.tx_base58.clone();
 
                             if global_index < txns.len() {
@@ -56,7 +61,7 @@ pub async fn get_claim_txs(accounts: &[Account], config: &Config) -> ClaimTxs {
                 }
             }
             Err(e) => {
-                tracing::error!("Request failed: {}. Retrying with a new proxy.", e);
+                tracing::error!("Request failed: {}.", e);
             }
         }
 

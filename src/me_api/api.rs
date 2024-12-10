@@ -2,18 +2,14 @@ use reqwest::{header::HeaderMap, Method, Proxy};
 
 use crate::utils::fetch::{send_http_request, RequestParams};
 
-use super::{
-    constants::CLAIM_AIRDROP_RECEIPT,
-    schemas::{ClaimBatchResponse, ClaimJson},
-    typedefs::RootJson,
-};
+use super::{constants::CLAIM_AIRDROP_RECEIPT, schemas::ClaimBatchResponse, typedefs::RootJson};
 
 pub async fn get_receipts(
     claim_wallets: &[&str],
     cu_price: u64,
     headers: HeaderMap,
     proxy: Option<&Proxy>,
-) -> eyre::Result<Vec<ClaimBatchResponse<ClaimJson>>> {
+) -> eyre::Result<Vec<ClaimBatchResponse>> {
     let query_batch = (0..claim_wallets.len())
         .map(|_| "ixs.newClaimBatch")
         .collect::<Vec<&str>>()
@@ -43,8 +39,7 @@ pub async fn get_receipts(
         headers: Some(headers),
     };
 
-    let response_body =
-        send_http_request::<Vec<ClaimBatchResponse<ClaimJson>>>(request_params).await?;
+    let response_body = send_http_request::<Vec<ClaimBatchResponse>>(request_params).await?;
 
     Ok(response_body)
 }

@@ -38,7 +38,7 @@ pub async fn collect_and_close(mut db: Database, config: &Config) -> eyre::Resul
         } else {
             account.set_closed_ata(true);
             account.set_collected_sol(true);
-            db.update();
+            db.update().await;
         };
 
         pretty_sleep(config.claim_sleep_range).await;
