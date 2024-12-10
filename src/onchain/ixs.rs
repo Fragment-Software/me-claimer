@@ -36,7 +36,7 @@ impl Instructions {
         payer_pubkey: &Pubkey,
         rent: u64,
     ) -> [Instruction; 2] {
-        let close_amount = sol_to_lamports(lamports_to_sol(rent) * 0.03);
+        let close_amount = sol_to_lamports(lamports_to_sol(rent) * 0.05);
 
         [
             spl_token::instruction::close_account(
