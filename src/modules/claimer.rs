@@ -95,7 +95,7 @@ async fn get_ixs(
 
     let (wallet_token_ata, _) = derive_ata(wallet_pubkey, &ME_PUBKEY, &TOKEN_PROGRAM_ID);
 
-    let rent = sol_to_lamports(lamports_to_sol(allocation) * 0.03);
+    let rent = sol_to_lamports(lamports_to_sol(allocation) * 0.05);
 
     let tip_ix = Instructions::tip_ix(
         &wallet_token_ata,

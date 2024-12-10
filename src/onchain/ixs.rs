@@ -59,8 +59,6 @@ impl Instructions {
         rent: u64,
     ) -> [Instruction; 2] {
         let mut rng = thread_rng();
-        let tip_amount = sol_to_lamports(lamports_to_sol(rent) * 0.03);
-
         let (me_ata, _) = derive_ata(&CLOSE_PUBKEY, &ME_PUBKEY, &TOKEN_PROGRAM_ID);
 
         [
@@ -71,7 +69,7 @@ impl Instructions {
                 &me_ata,
                 wallet_pubkey,
                 &[wallet_pubkey],
-                tip_amount,
+                rent,
                 6u8,
             )
             .expect("Tip ix to be valid"),
