@@ -31,6 +31,3 @@ USE_EXTERNAL_FEE_PAY = true
 
 # tx payer private key or mnemonic phrase
 EXTERNAL_FEE_PAYER_SECRET = ""
-
-# pubkey to collect all sol
-COLLECTOR_PUBKEY = ""
