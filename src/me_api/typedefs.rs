@@ -20,30 +20,38 @@ pub struct OuterJson {
 
 #[derive(Serialize)]
 pub struct RootJson {
-    #[serde(rename = "0")]
-    inner: OuterJson,
+    #[serde(flatten)]
+    entries: std::collections::HashMap<String, OuterJson>,
 }
 
 impl RootJson {
     pub fn to_string(
-        claim_wallet: &str,
+        claim_wallets: &[&str],
         allocation_event: &str,
         ns: &str,
         enable_stake: bool,
         priority_fee_micro_lamports: u64,
-    ) -> eyre::Result<String, serde_json::Error> {
-        let query = Self {
-            inner: OuterJson {
-                json: InnerJson {
-                    claim_wallet: claim_wallet.to_string(),
-                    allocation_event: allocation_event.to_string(),
-                    ns: ns.to_string(),
-                    enable_stake,
-                    priority_fee_micro_lamports,
-                },
-            },
-        };
+    ) -> eyre::Result<String> {
+        let entries: std::collections::HashMap<String, OuterJson> = claim_wallets
+            .iter()
+            .enumerate()
+            .map(|(i, &wallet)| {
+                (
+                    i.to_string(),
+                    OuterJson {
+                        json: InnerJson {
+                            claim_wallet: wallet.to_string(),
+                            allocation_event: allocation_event.to_string(),
+                            ns: ns.to_string(),
+                            enable_stake,
+                            priority_fee_micro_lamports,
+                        },
+                    },
+                )
+            })
+            .collect();
 
-        serde_json::to_string(&query)
+        let query = RootJson { entries };
+        Ok(serde_json::to_string(&query)?)
     }
 }

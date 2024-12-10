@@ -1,14 +1,13 @@
 use std::fs::File;
 
-use itertools::{EitherOrBoth, Itertools};
 use rand::{seq::IteratorRandom, thread_rng};
 use serde::{Deserialize, Serialize};
 
-use crate::utils::files::read_file_lines;
+use crate::{config::Config, utils::files::read_file_lines};
 
 use super::{
     account::Account,
-    constants::{CEX_ADDRESSES_FILE_PATH, DB_FILE_PATH, MNEMONICS_FILE_PATH, PROXIES_FILE_PATH},
+    constants::{CEX_ADDRESSES_FILE_PATH, DB_FILE_PATH, PROXIES_FILE_PATH, SECRETS_FILE_PATH},
 };
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -28,39 +27,52 @@ impl Database {
             .expect("Default db to be valid")
     }
 
-    pub async fn new() -> eyre::Result<Self> {
-        let mnemonics = read_file_lines(MNEMONICS_FILE_PATH).await.unwrap();
-        let proxies = read_file_lines(PROXIES_FILE_PATH).await.unwrap();
-        let cex_addresses = read_file_lines(CEX_ADDRESSES_FILE_PATH).await.unwrap();
+    pub async fn new(config: &Config) -> eyre::Result<Self> {
+        let secrets = read_file_lines(SECRETS_FILE_PATH).await.unwrap();
 
-        if cex_addresses.len() != mnemonics.len() {
+        let cex_addresses = if config.withdraw_to_cex {
+            let addresses = read_file_lines(CEX_ADDRESSES_FILE_PATH).await.unwrap();
+
+            if addresses.len() != secrets.len() {
+                return Err(eyre::eyre!(
+                    "Amount of CEX-addresses ({}) does not match the number of secrets ({})",
+                    addresses.len(),
+                    secrets.len()
+                ));
+            }
+
+            Some(addresses)
+        } else {
+            None
+        };
+
+        let proxies = read_file_lines(PROXIES_FILE_PATH).await.unwrap();
+
+        if proxies.len() != secrets.len() {
             return Err(eyre::eyre!(
-                "Amount of CEX-addresses ({}) does not match the number of private keys ({})",
-                cex_addresses.len(),
-                mnemonics.len()
+                "Amount of proxies ({}) does not match the number of secrets ({})",
+                proxies.len(),
+                secrets.len()
             ));
         }
 
-        let mut data = Vec::with_capacity(mnemonics.len());
+        let unique_proxies: std::collections::HashSet<_> = proxies.iter().collect();
+        if unique_proxies.len() != proxies.len() {
+            return Err(eyre::eyre!(
+                "Duplicate proxies detected in the file. Ensure all proxies are unique."
+            ));
+        }
 
-        for (entry, cex_address) in mnemonics
-            .into_iter()
-            .zip_longest(proxies.into_iter())
-            .zip(cex_addresses.into_iter())
-        {
-            let either_or_both = entry;
+        let mut data = Vec::with_capacity(secrets.len());
 
-            let (private_key, proxy) = match either_or_both {
-                EitherOrBoth::Both(pk, proxy) => (pk, Some(proxy)),
-                EitherOrBoth::Left(pk) => (pk, None),
-                EitherOrBoth::Right(_) => {
-                    return Err(eyre::eyre!(
-                        "Amount of proxies is greater than the number of private keys"
-                    ));
-                }
-            };
+        for (i, secret) in secrets.into_iter().enumerate() {
+            let cex_address = cex_addresses
+                .as_ref()
+                .and_then(|addresses| addresses.get(i).cloned());
 
-            let account = Account::new(&private_key, proxy, &cex_address);
+            let proxy = &proxies[i];
+
+            let account = Account::new(&secret, cex_address, proxy);
             data.push(account);
         }
 

@@ -45,16 +45,10 @@ pub async fn send_http_request<R: DeserializeOwned>(
         .await
         .inspect_err(|e| tracing::error!("Request failed: {}", e))?;
 
-    // let status = response.status();
-
     let text = response
         .text()
         .await
         .inspect_err(|e| tracing::error!("Failed to retrieve response text: {}", e))?;
-
-    // if !status.is_success() {
-    //     eyre::bail!("Status code not 200: {status}, {text}")
-    // }
 
     let deserialized_body = serde_json::from_str::<R>(&text)
         .inspect_err(|e| tracing::error!("Failed to deserialize response: {}\n {} ", e, text))?;

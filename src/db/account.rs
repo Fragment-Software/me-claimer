@@ -1,56 +1,47 @@
-use std::str::FromStr;
+#![allow(dead_code)]
+#![allow(unused_variables)]
 
 use reqwest::Proxy;
 use serde::{Deserialize, Serialize};
-use solana_sdk::{pubkey::Pubkey, signature::Keypair, signer::Signer};
+use solana_sdk::{pubkey::Pubkey, signature::Keypair};
 
-use crate::onchain::crypto::mnemonic_to_private_key;
+use crate::onchain::crypto::{get_address, get_wallet};
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct Account {
-    mnemonic: String,
-    private_key: String,
-    proxy: Option<String>,
-    address: String,
-    cex_address: String,
+    secret: String,
+    cex_address: Option<String>,
+    proxy: String,
     claimed: bool,
-    swapped: bool,
-    transfered: bool,
+    closed_ata: bool,
+    collected_sol: bool,
 }
 
 impl Account {
-    pub fn new(mnemonic: &str, proxy: Option<String>, cex_address: &str) -> Self {
-        let private_key = mnemonic_to_private_key(mnemonic);
-
-        let signer = Keypair::from_base58_string(&private_key);
-        let address = signer.pubkey();
-
+    pub fn new(secret: &str, cex_address: Option<String>, proxy: &str) -> Self {
         Self {
-            mnemonic: mnemonic.to_string(),
-            private_key,
-            proxy,
-            address: address.to_string(),
-            cex_address: cex_address.to_string(),
+            secret: secret.to_string(),
+            cex_address,
+            proxy: proxy.to_string(),
             ..Default::default()
         }
     }
 
-    pub fn proxy(&self) -> Option<Proxy> {
-        self.proxy
-            .as_ref()
-            .map(|proxy| Proxy::all(proxy).expect("Proxy to be valid"))
+    pub fn proxy(&self) -> Proxy {
+        Proxy::all(&self.proxy).expect("Proxy to be valid")
     }
 
-    pub fn keypair(&self) -> Keypair {
-        Keypair::from_base58_string(&self.private_key)
+    pub fn keypair(&self) -> eyre::Result<Keypair> {
+        get_wallet(&self.secret)
     }
 
     pub fn get_pubkey(&self) -> Pubkey {
-        Pubkey::from_str(&self.address).expect("Address to be valid")
+        let wallet = self.keypair().expect("Failed to get keypair");
+        get_address(&wallet)
     }
 
-    pub fn get_cex_address(&self) -> &str {
-        &self.cex_address
+    pub fn get_cex_address(&self) -> Option<&str> {
+        self.cex_address.as_deref()
     }
 
     pub fn set_claimed(&mut self, claimed: bool) {
@@ -61,19 +52,19 @@ impl Account {
         self.claimed
     }
 
-    pub fn set_swapped(&mut self, swapped: bool) {
-        self.swapped = swapped
+    pub fn get_closed_ata(&self) -> bool {
+        self.closed_ata
     }
 
-    pub fn get_swapped(&self) -> bool {
-        self.swapped
+    pub fn set_closed_ata(&mut self, closed: bool) {
+        self.closed_ata = closed
     }
 
-    pub fn set_transfered(&mut self, transfered: bool) {
-        self.transfered = transfered
+    pub fn get_collected_sol(&self) -> bool {
+        self.collected_sol
     }
 
-    pub fn get_transfered(&self) -> bool {
-        self.transfered
+    pub fn set_collected_sol(&mut self, collected_sol: bool) {
+        self.collected_sol = collected_sol
     }
 }

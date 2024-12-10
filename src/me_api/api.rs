@@ -1,4 +1,4 @@
-use reqwest::{Method, Proxy};
+use reqwest::{header::HeaderMap, Method, Proxy};
 
 use crate::utils::fetch::{send_http_request, RequestParams};
 
@@ -8,16 +8,25 @@ use super::{
     typedefs::RootJson,
 };
 
-pub async fn get_receipt(
-    wallet_address: &str,
+pub async fn get_receipts(
+    claim_wallets: &[&str],
+    cu_price: u64,
+    headers: HeaderMap,
     proxy: Option<&Proxy>,
 ) -> eyre::Result<Vec<ClaimBatchResponse<ClaimJson>>> {
+    let query_batch = (0..claim_wallets.len())
+        .map(|_| "ixs.newClaimBatch")
+        .collect::<Vec<&str>>()
+        .join(",");
+
+    let full_url = format!("{}{}", CLAIM_AIRDROP_RECEIPT, query_batch);
+
     let query = RootJson::to_string(
-        wallet_address,
-        "testme-airdrop-0",
-        "5PoydnnQyvsuH9YoLH1gDP3Sfn9HrDwtrBjpzkaHEKP1",
+        claim_wallets,
+        "tge-airdrop-final",
+        "acAvyneD7adS3yrXUp41c1AuoYoYRhnjeAWH9stbdTf",
         false,
-        80000,
+        cu_price,
     )
     .expect("Failed to stringify receipt query");
 
@@ -26,12 +35,12 @@ pub async fn get_receipt(
         .collect();
 
     let request_params = RequestParams {
-        url: CLAIM_AIRDROP_RECEIPT,
+        url: &full_url,
         method: Method::GET,
         body: None::<serde_json::Value>,
         query_args: Some(query_args),
         proxy,
-        headers: None,
+        headers: Some(headers),
     };
 
     let response_body =

@@ -1,4 +1,26 @@
-SOLANA_RPC_URL = "https://mainnet.helius-rpc.com/?api-key=2141781a-5935-4a91-b1cc-148dc6dbd0bb" # rpc url
-MOBILE_PROXIES = false                                                                          # whether you're using mobile proxies or not
-SWAP_IP_LINK = ""                                                                               # if you're using mobile proxies put the change ip link in here
-CLAIM_SLEEP_RANGE = [4, 10]                                                                     # sleep range between each claim (seconds)
+# rpc url
+SOLANA_RPC_URL = ""
+
+# proxy url
+ME_PROXY_URL = "http://login:password@ip:port"
+
+# withdraw allocation to external address in claim tx
+WITHDRAW_TO_CEX = false
+
+# check in https://jito-labs.metabaseapp.com/public/dashboard/016d4d60-e168-4a8f-93c7-4cd5ec6c7c8d (in sol)
+JITO_TIP_AMOUNT = 0.0003
+
+# priority fee (in microlamports)
+CU_PRICE = 800000
+
+# sleep range between each claim (seconds)
+CLAIM_SLEEP_RANGE = [4, 10]
+
+# use external fee payer
+USE_EXTERNAL_FEE_PAY = true
+
+# tx payer private key or mnemonic phrase
+EXTERNAL_FEE_PAYER_SECRET = ""
+
+# pubkey to collect all sol
+COLLECTOR_PUBKEY = ""

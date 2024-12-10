@@ -4,13 +4,18 @@ use std::path::Path;
 #[allow(unused)]
 const CONFIG_FILE_PATH: &str = "data/config.toml";
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub struct Config {
     pub solana_rpc_url: String,
-    pub mobile_proxies: bool,
-    pub swap_ip_link: String,
+    pub me_proxy_url: String,
+    pub withdraw_to_cex: bool,
+    pub jito_tip_amount: f64,
+    pub cu_price: u64,
     pub claim_sleep_range: [u64; 2],
+    pub use_external_fee_pay: bool,
+    pub external_fee_payer_secret: String,
+    pub collector_pubkey: String,
 }
 
 impl Config {
@@ -24,5 +29,4 @@ impl Config {
             .await
             .expect("Default config to be valid")
     }
-    //
 }

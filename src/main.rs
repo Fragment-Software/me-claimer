@@ -3,7 +3,7 @@ use utils::logger::init_default_logger;
 
 mod config;
 mod db;
-mod jup_api;
+mod jito;
 mod me_api;
 mod modules;
 mod onchain;

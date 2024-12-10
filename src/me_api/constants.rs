@@ -1,2 +1,1 @@
-pub const CLAIM_AIRDROP_RECEIPT: &str =
-    "https://testme.mefoundation.com/api/trpc/ixs.newClaimBatch";
+pub const CLAIM_AIRDROP_RECEIPT: &str = "https://mefoundation.com/api/trpc/";

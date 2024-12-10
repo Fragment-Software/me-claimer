@@ -1,9 +1,6 @@
 use indicatif::{ProgressBar, ProgressStyle};
 use rand::Rng;
-use reqwest::Method;
 use term_size::dimensions;
-
-use super::fetch::{send_http_request, RequestParams};
 
 pub fn random_in_range<T>(range: [T; 2]) -> T
 where
@@ -46,19 +43,4 @@ pub async fn pretty_sleep(sleep_range: [u64; 2]) {
     }
 
     pb.finish_with_message("Done!");
-}
-
-pub async fn swap_ip_address(link: &str) -> eyre::Result<()> {
-    let request_params = RequestParams {
-        url: link,
-        method: Method::GET,
-        body: None::<serde_json::Value>,
-        query_args: None,
-        proxy: None,
-        headers: None,
-    };
-
-    let _ = send_http_request::<serde_json::Value>(request_params).await?;
-
-    Ok(())
 }

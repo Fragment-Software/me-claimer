@@ -1,3 +1,4 @@
+use solana_sdk::{pubkey::Pubkey, signature::Keypair, signer::Signer as SolSigner};
 use std::num::ParseIntError;
 
 use bip39::Mnemonic;
@@ -6,17 +7,36 @@ use sodiumoxide::crypto::sign::{ed25519, PublicKey, SecretKey, Seed};
 
 use super::constants::{CURVE, PATH};
 
+pub fn get_wallet(secret: &str) -> eyre::Result<Keypair> {
+    match mnemonic_to_private_key(secret) {
+        Ok(private_key) => Ok(Keypair::from_base58_string(&private_key)),
+        Err(_) => {
+            let decoded_key = solana_sdk::bs58::decode(secret)
+                .into_vec()
+                .map_err(|_| eyre::eyre!("Invalid private key: {secret}"))?;
+            Ok(Keypair::from_bytes(&decoded_key)?)
+        }
+    }
+}
+
+pub fn get_address(signer: &Keypair) -> Pubkey {
+    signer.pubkey()
+}
+
 #[derive(Debug)]
 pub struct Keys {
     pub key: Vec<u8>,
     pub chain_code: Vec<u8>,
 }
 
-fn mnemonic_to_seed(mnemonic: &str) -> Vec<u8> {
-    let mnemonic = Mnemonic::parse(mnemonic).expect("Invalid mnemonic phrase");
+fn mnemonic_to_seed(mnemonic: &str) -> eyre::Result<Vec<u8>> {
+    let mnemonic = match Mnemonic::parse(mnemonic) {
+        Ok(mnemo) => mnemo,
+        Err(e) => eyre::bail!("{e}"),
+    };
 
     let seed = mnemonic.to_seed("");
-    seed.to_vec()
+    Ok(seed.to_vec())
 }
 
 fn to_hex(bytes: Vec<u8>) -> String {
@@ -83,7 +103,7 @@ fn derive_path(path: &str, seed: &str, curve: &str, offset: u32) -> eyre::Result
 }
 
 fn derive(mnemonic: &str, path: &str, curve: &str) -> eyre::Result<Vec<u8>> {
-    let seed = mnemonic_to_seed(mnemonic);
+    let seed = mnemonic_to_seed(mnemonic)?;
     let hex_seed = to_hex(seed);
 
     let Keys { key, .. }: Keys = derive_path(path, &hex_seed, curve, 0x80000000)?;
@@ -91,16 +111,16 @@ fn derive(mnemonic: &str, path: &str, curve: &str) -> eyre::Result<Vec<u8>> {
     Ok(key)
 }
 
-pub fn mnemonic_to_private_key(mnemonic: &str) -> String {
+fn mnemonic_to_private_key(mnemonic: &str) -> eyre::Result<String> {
     sodiumoxide::init().unwrap();
-    let key = derive(mnemonic, PATH, CURVE).expect("key to be valid");
+    let key = derive(mnemonic, PATH, CURVE)?;
 
-    let seed: Seed = Seed::from_slice(&key).expect("Seed should be 32 bytes");
+    let seed: Seed = Seed::from_slice(&key).expect("Invalid private key");
     let (public_key, _): (PublicKey, SecretKey) = ed25519::keypair_from_seed(&seed);
 
     let mut secret_key: Vec<u8> = Vec::new();
     secret_key.extend_from_slice(&key);
     secret_key.extend_from_slice(public_key.as_ref());
 
-    solana_sdk::bs58::encode(secret_key.clone()).into_string()
+    Ok(solana_sdk::bs58::encode(secret_key.clone()).into_string())
 }
