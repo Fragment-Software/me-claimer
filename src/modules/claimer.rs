@@ -1,8 +1,6 @@
 use std::{collections::HashMap, str::FromStr, sync::Arc, time::Duration};
 
-use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{
-    commitment_config::CommitmentConfig,
     instruction::Instruction,
     native_token::{lamports_to_sol, sol_to_lamports},
     pubkey::Pubkey,
@@ -17,7 +15,6 @@ use crate::{
     db::{account::Account, database::Database},
     jito::{jito_lib::JitoJsonRpcSDK, utils::check_final_bundle_status},
     onchain::{
-        client::init_solana_rpc_client_with_retries,
         constants::{ME_PUBKEY, TOKEN_PROGRAM_ID},
         crypto::get_wallet,
         derive::derive_ata,
@@ -29,8 +26,6 @@ use crate::{
 use super::prepare_txs::get_claim_txs;
 
 pub async fn claim_me(db: Arc<Mutex<Database>>, config: &Config) -> eyre::Result<()> {
-    let http_client = reqwest::Client::new();
-    let provider = init_solana_rpc_client_with_retries(&config.solana_rpc_url, http_client.clone());
     let config = Arc::new(config.clone());
 
     let unclaimed_wallets: Vec<Arc<Mutex<Account>>> = db
@@ -55,14 +50,12 @@ pub async fn claim_me(db: Arc<Mutex<Database>>, config: &Config) -> eyre::Result
 
     for (index, account) in unclaimed_wallets.into_iter().enumerate() {
         if !account.lock().await.get_claimed() {
-            let provider_clone = Arc::clone(&provider);
             let config_clone = Arc::clone(&config);
             let account_clone = Arc::clone(&account);
             let txs_for_account = txs[index].clone();
             let db_clone = Arc::clone(&db);
 
             join_set.spawn(process_account(
-                provider_clone,
                 account_clone,
                 txs_for_account,
                 config_clone,
@@ -81,7 +74,6 @@ pub async fn claim_me(db: Arc<Mutex<Database>>, config: &Config) -> eyre::Result
 }
 
 async fn get_ixs(
-    provider: &Arc<RpcClient>,
     allocation: u64,
     wallet_pubkey: &Pubkey,
     cex_pubkey: Option<&str>,
@@ -108,20 +100,17 @@ async fn get_ixs(
         let cex_pubkey = Pubkey::from_str(cex_pubkey.unwrap())?;
 
         let (cex_token_ata, _) = derive_ata(&cex_pubkey, &ME_PUBKEY, &TOKEN_PROGRAM_ID);
-        let cex_token_ata_exist = provider.get_account_data(&cex_token_ata).await.is_ok();
 
-        if !cex_token_ata_exist {
-            let create_ata_args = CreateAtaArgs {
-                funding_address: *payer_pubkey,
-                associated_account_address: cex_token_ata,
-                wallet_address: cex_pubkey,
-                token_mint_address: ME_PUBKEY,
-                token_program_id: TOKEN_PROGRAM_ID,
-                instruction: 0,
-            };
+        let create_ata_args = CreateAtaArgs {
+            funding_address: *payer_pubkey,
+            associated_account_address: cex_token_ata,
+            wallet_address: cex_pubkey,
+            token_mint_address: ME_PUBKEY,
+            token_program_id: TOKEN_PROGRAM_ID,
+            instruction: 1,
+        };
 
-            ixs.push(Instructions::create_ata(create_ata_args));
-        }
+        ixs.push(Instructions::create_ata(create_ata_args));
 
         let transfer_ix = spl_token::instruction::transfer_checked(
             &TOKEN_PROGRAM_ID,
@@ -141,7 +130,6 @@ async fn get_ixs(
 }
 
 async fn process_account(
-    provider: Arc<RpcClient>,
     account: Arc<Mutex<Account>>,
     txs: Vec<HashMap<std::string::String, u64>>,
     config: Arc<Config>,
@@ -177,7 +165,6 @@ async fn process_account(
                 solana_sdk::bs58::encode(bincode::serialize(&claim_tx)?).into_string();
 
             let instructions = get_ixs(
-                &provider,
                 *allocation,
                 &wallet.pubkey(),
                 account.lock().await.get_cex_address(),
@@ -186,15 +173,13 @@ async fn process_account(
             )
             .await?;
 
-            let (recent_blockhash, _) = provider
-                .get_latest_blockhash_with_commitment(CommitmentConfig::finalized())
-                .await?;
+            let recent_blockhash = claim_tx.message.recent_blockhash();
 
             let inner_tx = Transaction::new_signed_with_payer(
                 &instructions,
                 Some(&payer_kp.pubkey()),
                 &signing_keypairs,
-                recent_blockhash,
+                *recent_blockhash,
             );
 
             let serialized_inner_tx =
