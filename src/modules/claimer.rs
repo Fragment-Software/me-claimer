@@ -49,7 +49,12 @@ pub async fn claim_me(db: Arc<Mutex<Database>>, config: &Config) -> eyre::Result
     let txs = get_claim_txs(&locked_wallets, &config).await?;
 
     for (index, account) in unclaimed_wallets.into_iter().enumerate() {
-        if !account.lock().await.get_claimed() {
+        let should_process = {
+            let account_locked = account.lock().await;
+            !account_locked.get_claimed()
+        };
+
+        if should_process {
             let config_clone = Arc::clone(&config);
             let account_clone = Arc::clone(&account);
             let txs_for_account = txs[index].clone();
@@ -61,6 +66,12 @@ pub async fn claim_me(db: Arc<Mutex<Database>>, config: &Config) -> eyre::Result
                 config_clone,
                 db_clone,
             ));
+
+            if join_set.len() >= config.parallelism {
+                if let Some(Err(e)) = join_set.join_next().await {
+                    tracing::error!("Task failed: {}", e);
+                }
+            }
         }
     }
 
@@ -227,7 +238,11 @@ async fn process_account(
                         }
                     }
                 } else if let Some(error) = status_response.get("error") {
-                    tracing::error!("Error checking bundle status: {:?}", error);
+                    tracing::error!(
+                        "{}: Error checking bundle status: {:?}",
+                        wallet.pubkey(),
+                        error
+                    );
                 }
 
                 if attempt < max_retries {

@@ -4,6 +4,10 @@ SOLANA_RPC_URL = ""
 # proxy url
 ME_PROXY_URL = "http://login:password@ip:port"
 
+# The maximum number of asynchronous tasks running concurrently
+# (not directly related to operating system threads)
+PARALLELISM = 1
+
 # withdraw allocation to external address in claim tx
 WITHDRAW_TO_CEX = false
 

@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use solana_sdk::pubkey::Pubkey;
 use tokio::sync::Mutex;
 
 use crate::db::{account::Account, database::Database};
@@ -30,13 +31,15 @@ pub async fn check_final_bundle_status(
 
         match bundle_status.confirmation_status.as_deref() {
             Some("confirmed") => {
-                check_transaction_error(&bundle_status)?;
+                let acc = account.lock().await;
+                check_transaction_error(&acc.get_pubkey(), &bundle_status)?;
             }
             Some("finalized") => {
-                check_transaction_error(&bundle_status)?;
-                account.lock().await.set_claimed(true);
+                let mut acc = account.lock().await;
+                check_transaction_error(&acc.get_pubkey(), &bundle_status)?;
+                print_transaction_url(&acc.get_pubkey(), &bundle_status);
+                acc.set_claimed(true);
                 db.lock().await.update();
-                print_transaction_url(&bundle_status);
                 return Ok(());
             }
             Some(_) => {}
@@ -49,7 +52,8 @@ pub async fn check_final_bundle_status(
     }
 
     eyre::bail!(
-        "Failed to get finalized status after {} attempts",
+        "{}: Failed to get finalized status after {} attempts",
+        account.lock().await.get_pubkey(),
         max_retries
     )
 }
@@ -78,28 +82,32 @@ pub fn get_bundle_status(status_response: &serde_json::Value) -> eyre::Result<Bu
         })
 }
 
-pub fn check_transaction_error(bundle_status: &BundleStatus) -> eyre::Result<()> {
+pub fn check_transaction_error(pubkey: &Pubkey, bundle_status: &BundleStatus) -> eyre::Result<()> {
     if let Some(err) = &bundle_status.err {
         if err["Ok"].is_null() {
-            tracing::error!("Transaction executed without errors.");
+            tracing::error!("{}: Transaction executed without errors.", pubkey);
             Ok(())
         } else {
-            tracing::error!("Transaction encountered an error: {:?}", err);
-            eyre::bail!("Transaction encountered an error")
+            tracing::error!("{}: Transaction encountered an error: {:?}", pubkey, err);
+            eyre::bail!("{}: Transaction encountered an error", pubkey)
         }
     } else {
         Ok(())
     }
 }
 
-pub fn print_transaction_url(bundle_status: &BundleStatus) {
+pub fn print_transaction_url(pubkey: &Pubkey, bundle_status: &BundleStatus) {
     if let Some(transactions) = &bundle_status.transactions {
         if let Some(tx_id) = transactions.first() {
-            tracing::info!("Transaction URL: https://solscan.io/tx/{}", tx_id);
+            tracing::info!(
+                "{}: Transaction confirmed: https://solscan.io/tx/{}",
+                pubkey,
+                tx_id
+            );
         } else {
-            tracing::warn!("Unable to extract transaction ID.");
+            tracing::warn!("{}: Unable to extract transaction ID.", pubkey);
         }
     } else {
-        tracing::warn!("No transactions found in the bundle status.");
+        tracing::warn!("{}: No transactions found in the bundle status.", pubkey);
     }
 }

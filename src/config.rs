@@ -9,6 +9,7 @@ const CONFIG_FILE_PATH: &str = "data/config.toml";
 pub struct Config {
     pub solana_rpc_url: String,
     pub me_proxy_url: String,
+    pub parallelism: usize,
     pub withdraw_to_cex: bool,
     pub jito_tip_amount: f64,
     pub cu_price: u64,
